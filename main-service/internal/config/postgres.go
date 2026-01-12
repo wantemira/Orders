@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// PostgresConfig содержит конфигурацию для подключения к PostgreSQL
 type PostgresConfig struct {
 	Host     string
 	Port     string
@@ -16,6 +17,7 @@ type PostgresConfig struct {
 	Password string
 }
 
+// LoadPostgresConfig загружает конфигурацию PostgreSQL из переменных окружения
 func LoadPostgresConfig(logger *logrus.Logger) (*PostgresConfig, error) {
 	envPath := filepath.Join("configs", ".env")
 	if err := godotenv.Load(envPath); err != nil {

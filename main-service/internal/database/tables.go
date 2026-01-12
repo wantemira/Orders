@@ -8,11 +8,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// HandlerDB обрабатывает операции с базой данных
 type HandlerDB struct {
 	conn   *pgx.Conn
 	logger *logrus.Logger
 }
 
+// NewHandlerDB создает новый экземпляр HandlerDB
 func NewHandlerDB(conn *pgx.Conn, logger *logrus.Logger) *HandlerDB {
 	return &HandlerDB{
 		conn:   conn,
@@ -20,12 +22,17 @@ func NewHandlerDB(conn *pgx.Conn, logger *logrus.Logger) *HandlerDB {
 	}
 }
 
-func (h *HandlerDB) CreateTables(ctx context.Context, conn *pgx.Conn) error {
+// CreateTables создает все необходимые таблицы в базе данных
+func (h *HandlerDB) CreateTables(ctx context.Context, _ *pgx.Conn) error {
 	tx, err := h.conn.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("HandlerDB.CreateTables: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && err != pgx.ErrTxClosed {
+			h.logger.Errorf("failed to rollback transaction: %v", err)
+		}
+	}()
 
 	creator := NewTableCreator()
 

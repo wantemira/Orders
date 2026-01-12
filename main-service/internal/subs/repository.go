@@ -17,11 +17,13 @@ var (
 	errNotFound = errors.New("record not found")
 )
 
+// Repository управляет доступом к данным в базе данных
 type Repository struct {
 	client *pgx.Conn
 	logger *logrus.Logger
 }
 
+// NewRepository создает новый экземпляр Repository
 func NewRepository(client *pgx.Conn, logger *logrus.Logger) *Repository {
 	return &Repository{
 		client: client,
@@ -29,49 +31,55 @@ func NewRepository(client *pgx.Conn, logger *logrus.Logger) *Repository {
 	}
 }
 
-func (r *Repository) Create(ctx context.Context, orderJson *models.OrderJson) error {
+// Create сохраняет заказ в базе данных
+func (r *Repository) Create(ctx context.Context, orderJSON *models.OrderJSON) error {
 	tx, err := r.client.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && err != pgx.ErrTxClosed {
+			r.logger.Errorf("failed to rollback transaction: %v", err)
+		}
+	}()
 
 	order := models.Order{
-		OrderUID:          orderJson.OrderUID,
-		TrackNumber:       orderJson.TrackNumber,
-		Entry:             orderJson.Entry,
-		Locale:            orderJson.Locale,
-		InternalSignature: orderJson.InternalSignature,
-		CustomerID:        orderJson.CustomerID,
-		DeliveryService:   orderJson.DeliveryService,
-		ShardKey:          orderJson.ShardKey,
-		SmID:              orderJson.SmID,
-		DateCreated:       orderJson.DateCreated,
-		OofShard:          orderJson.OofShard,
+		OrderUID:          orderJSON.OrderUID,
+		TrackNumber:       orderJSON.TrackNumber,
+		Entry:             orderJSON.Entry,
+		Locale:            orderJSON.Locale,
+		InternalSignature: orderJSON.InternalSignature,
+		CustomerID:        orderJSON.CustomerID,
+		DeliveryService:   orderJSON.DeliveryService,
+		ShardKey:          orderJSON.ShardKey,
+		SmID:              orderJSON.SmID,
+		DateCreated:       orderJSON.DateCreated,
+		OofShard:          orderJSON.OofShard,
 	}
 	r.logger.Infof("Repository.Create: Transaction BEGIN for %s", order.OrderUID)
 
 	if err = insertOrder(ctx, tx, order); err != nil {
 		if isDuplicateKeyError(err) {
 			r.logger.Warnf("Repository.Create: order already exists: %v", err)
-			return fmt.Errorf("%w: order with UID %s already exists", errExist, orderJson.OrderUID)
+			return fmt.Errorf("%w: order with UID %s already exists", errExist, orderJSON.OrderUID)
 		}
 		r.logger.Warnf("Repository.Create: %v", err)
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
-	delivery := orderJson.Delivery
-	delivery.OrderUID = orderJson.OrderUID
+	delivery := orderJSON.Delivery
+	delivery.OrderUID = orderJSON.OrderUID
 	if err = insertDelivery(ctx, tx, delivery); err != nil {
 		r.logger.Warnf("Repository.Create: %v", err)
 		return fmt.Errorf("failed to insert delivery: %w", err)
 	}
-	payment := orderJson.Payment
+	payment := orderJSON.Payment
 	if err = insertPayment(ctx, tx, payment); err != nil {
 		r.logger.Warnf("Repository.Create: %v", err)
 		return fmt.Errorf("failed to insert payment: %w", err)
 	}
-	items := orderJson.Items
+	items := orderJSON.Items
 	for _, item := range items {
 		if err = insertItems(ctx, tx, item); err != nil {
 			r.logger.Warnf("Repository.Create: %v", err)
@@ -82,15 +90,16 @@ func (r *Repository) Create(ctx context.Context, orderJson *models.OrderJson) er
 	return tx.Commit(ctx)
 }
 
-func (r *Repository) GetAll(ctx context.Context) ([]models.OrderJson, error) {
+// GetAll возвращает все заказы из базы данных
+func (r *Repository) GetAll(ctx context.Context) ([]models.OrderJSON, error) {
 	orderUIDs, err := r.getAllOrderUIDs(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if len(orderUIDs) == 0 {
-		return []models.OrderJson{}, nil
+		return []models.OrderJSON{}, nil
 	}
-	var orders []models.OrderJson
+	var orders []models.OrderJSON
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -146,8 +155,9 @@ func (r *Repository) getAllOrderUIDs(ctx context.Context) ([]string, error) {
 	return orderUIDs, nil
 }
 
-func (r *Repository) GetOrder(ctx context.Context, orderUID string) (*models.OrderJson, error) {
-	var order models.OrderJson
+// GetOrder возвращает заказ по его UID из базы данных
+func (r *Repository) GetOrder(ctx context.Context, orderUID string) (*models.OrderJSON, error) {
+	var order models.OrderJSON
 	err := r.client.QueryRow(ctx,
 		`SELECT order_uid, track_number, entry, locale, internal_signature, customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard
 		FROM orders

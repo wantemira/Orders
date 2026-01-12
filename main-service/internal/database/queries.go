@@ -1,16 +1,22 @@
+// Package database предоставляет функции для создания таблиц в базе данных
 package database
 
+// TableCreate определяет интерфейс для создания таблиц в базе данных
 type TableCreate interface {
 	createOrders() string
 	createDeliveries() string
 	createPayments() string
 	createItems() string
 }
+
+// TableCreator реализует интерфейс TableCreate для создания таблиц
 type TableCreator struct{}
 
+// NewTableCreator создает новый экземпляр TableCreator
 func NewTableCreator() TableCreate {
 	return &TableCreator{}
 }
+
 func (c *TableCreator) createOrders() string {
 	return `CREATE TABLE IF NOT EXISTS orders (
 			order_uid VARCHAR(255) PRIMARY KEY NOT NULL,

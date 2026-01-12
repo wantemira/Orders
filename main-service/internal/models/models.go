@@ -1,8 +1,10 @@
+// Package models содержит структуры данных заказов
 package models
 
 import "time"
 
-type OrderJson struct {
+// OrderJSON представляет заказ в формате JSON для API
+type OrderJSON struct {
 	OrderUID          string    `json:"order_uid"`
 	TrackNumber       string    `json:"track_number"`
 	Entry             string    `json:"entry"`
@@ -20,6 +22,7 @@ type OrderJson struct {
 	Items    []Item   `json:"items"`
 }
 
+// Order представляет заказ в базе данных
 type Order struct {
 	OrderUID          string    `json:"order_uid"`
 	TrackNumber       string    `json:"track_number"`
@@ -34,6 +37,7 @@ type Order struct {
 	OofShard          string    `json:"oof_shard"`
 }
 
+// Delivery содержит информацию о доставке
 type Delivery struct {
 	OrderUID string `json:"order_uid"`
 	Name     string `json:"name"`
@@ -45,6 +49,7 @@ type Delivery struct {
 	Email    string `json:"email"`
 }
 
+// Payment содержит информацию об оплате
 type Payment struct {
 	Transaction  string `json:"transaction"`
 	RequestID    string `json:"request_id"`
@@ -58,6 +63,7 @@ type Payment struct {
 	CustomFee    int    `json:"custom_fee"`
 }
 
+// Item представляет товар в заказе
 type Item struct {
 	ID          uint   `json:"id"`
 	ChrtID      int64  `json:"chrt_id"`

@@ -1,3 +1,4 @@
+// Package main является точкой входа в приложение
 package main
 
 import (
@@ -49,7 +50,12 @@ func main() {
 	go app.server.Run()
 
 	// KAFKA CONSUMER
-	defer app.consumer.Close()
+	defer func() {
+		if err := app.consumer.Close(); err != nil {
+			app.logger.Errorf("failed to close consumer: %v", err)
+		}
+	}()
+
 	app.logger.Infof("main: [KAFKA_CONSUMER]: Run")
 	app.consumer.Run(ctx)
 

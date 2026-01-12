@@ -1,3 +1,4 @@
+// Package messaging содержит клиенты для работы с Kafka
 package messaging
 
 import (
@@ -13,12 +14,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// KafkaConsumer реализует Consumer для чтения сообщений из Kafka
 type KafkaConsumer struct {
 	reader  *kafka.Reader
 	logger  *logrus.Logger
 	handler *subs.Handler
 }
 
+// NewKafkaConsumer создает новый экземпляр KafkaConsumer
 func NewKafkaConsumer(brokers []string, topic string, groupID string, logger *logrus.Logger, handler *subs.Handler) Consumer {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        brokers,
@@ -36,6 +39,7 @@ func NewKafkaConsumer(brokers []string, topic string, groupID string, logger *lo
 	}
 }
 
+// Run запускает потребителя Kafka
 func (c *KafkaConsumer) Run(ctx context.Context) {
 	c.logger.Info("KafkaConsumer.Run: Starting consumer...")
 	c.logger.Infof("KafkaConsumer.Run: Brokers: %v, Topic: %s, GroupID: %s",
@@ -60,6 +64,8 @@ func (c *KafkaConsumer) Run(ctx context.Context) {
 	}
 
 }
+
+// ConsumeMessage читает и обрабатывает сообщения из Kafka
 func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 	kafkaMsg, err := c.reader.ReadMessage(ctx)
 	if err != nil {
@@ -76,7 +82,7 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 		"key":       kafkaMsg.Key,
 	})
 	log.Info("KafkaConsumer.Run: Received kafka message")
-	var order *models.OrderJson
+	var order *models.OrderJSON
 	if err := json.Unmarshal(kafkaMsg.Value, &order); err != nil {
 		log.Errorf("KafkaConsumer.ConsumeMessage: Failed to unmarshal message: %v. Message %s", err, string(kafkaMsg.Value))
 
@@ -104,10 +110,12 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 	return nil
 }
 
+// Commit подтверждает обработку сообщения в Kafka
 func (c *KafkaConsumer) Commit(ctx context.Context, msg kafka.Message) error {
 	return c.reader.CommitMessages(ctx, msg)
 }
 
+// Close закрывает соединение с Kafka
 func (c *KafkaConsumer) Close() error {
 	c.logger.Info("KafkaConsumer.Close: Closing Kafka consumer")
 	return c.reader.Close()

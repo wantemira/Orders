@@ -1,3 +1,4 @@
+// Package subs содержит подписчиков и обработчики для Kafka сообщений
 package subs
 
 import (
@@ -13,23 +14,28 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Handler обрабатывает бизнес-логику заказов
 type Handler struct {
 	service *Service
 	logger  *logrus.Logger
 }
 
+// NewHandler создает новый экземпляр Handler
 func NewHandler(service *Service, logger *logrus.Logger) *Handler {
 	return &Handler{
 		service: service,
 		logger:  logger,
 	}
 }
-func (h *Handler) Create(ctx context.Context, jsonOrder *models.OrderJson) error {
+
+// Create создает новый заказ в системе
+func (h *Handler) Create(ctx context.Context, jsonOrder *models.OrderJSON) error {
 	return h.service.Create(ctx, jsonOrder) // can delete handler, but we stay here for future http handling
 
 }
 
-func (h *Handler) GetOrderFromHttp(w http.ResponseWriter, r *http.Request) {
+// GetOrderFromHTTP обрабатывает HTTP запрос для получения заказа
+func (h *Handler) GetOrderFromHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
@@ -40,14 +46,14 @@ func (h *Handler) GetOrderFromHttp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != http.MethodGet {
-		h.logger.Warnf("Handler.GetOrderFromHttp: invalid method %s", r.Method)
+		h.logger.Warnf("Handler.GetOrderFromHTTP: invalid method %s", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	orderUID := getParamFromPath(r.URL.Path)
 	if orderUID == "" {
-		h.logger.Warn("Handler.GetOrderFromHttp: empty order UID")
+		h.logger.Warn("Handler.GetOrderFromHTTP: empty order UID")
 		http.Error(w, "Order UID is required", http.StatusBadRequest)
 		return
 	}
@@ -66,16 +72,21 @@ func (h *Handler) GetOrderFromHttp(w http.ResponseWriter, r *http.Request) {
 
 	data, err := json.Marshal(order)
 	if err != nil {
-		h.logger.Errorf("Handler.GetOrderFromHttp: failed to marshal order %s: %v", orderUID, err)
+		h.logger.Errorf("Handler.GetOrderFromHTTP: failed to marshal order %s: %v", orderUID, err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+	_, err = w.Write(data)
+	if err != nil {
+		h.logger.Errorf("failed to write response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
 }
 
+// GetOrder возвращает заказ по его UID
 func (h *Handler) GetOrder(orderUID string) {
 	order, err := h.service.GetOrder(context.Background(), orderUID)
 	if err != nil {
@@ -86,12 +97,12 @@ func (h *Handler) GetOrder(orderUID string) {
 }
 func (h *Handler) handleGetOrderError(w http.ResponseWriter, err error, orderUID string) {
 	if errors.Is(err, errNotFound) || strings.Contains(err.Error(), "not found") {
-		h.logger.Warnf("Handler.GetOrderFromHttp: order %s not found: %v", orderUID, err)
+		h.logger.Warnf("Handler.handleGetOrderError: order %s not found: %v", orderUID, err)
 		http.Error(w, fmt.Sprintf("Order %s not found", orderUID), http.StatusNotFound)
 		return
 	}
 
-	h.logger.Errorf("Handler.GetOrderFromHttp: failed to get order %s: %v", orderUID, err)
+	h.logger.Errorf("Handler.handleGetOrderError: failed to get order %s: %v", orderUID, err)
 	http.Error(w, "Internal server error", http.StatusInternalServerError)
 }
 
@@ -99,11 +110,3 @@ func getParamFromPath(path string) string {
 	param := path[strings.LastIndex(path, "/")+1:]
 	return param
 }
-
-// func getParamFromPath(path string) string {
-// 	parts := strings.Split(strings.Trim(path, "/"), "/")
-// 	if len(parts) >= 2 && parts[0] == "order" {
-// 		return parts[1]
-// 	}
-// 	return ""
-// }

@@ -1,3 +1,4 @@
+// Package router содержит HTTP роутер и сервер
 package router
 
 import (
@@ -9,11 +10,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Server представляет HTTP сервер приложения
 type Server struct {
 	handler *subs.Handler
 	logger  *logrus.Logger
 }
 
+// NewServer создает новый HTTP сервер
 func NewServer(handler *subs.Handler, logger *logrus.Logger) *Server {
 	return &Server{
 		handler: handler,
@@ -21,8 +24,9 @@ func NewServer(handler *subs.Handler, logger *logrus.Logger) *Server {
 	}
 }
 
+// Run запускает HTTP сервер
 func (s *Server) Run() {
-	http.HandleFunc("/order/{order_uid}", s.handler.GetOrderFromHttp)
+	http.HandleFunc("/order/{order_uid}", s.handler.GetOrderFromHTTP)
 	port := config.GetEnv("PORT", "8081")
 	server := &http.Server{
 		Addr: fmt.Sprintf(":%s", port),

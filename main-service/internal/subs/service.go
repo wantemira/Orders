@@ -14,6 +14,7 @@ const (
 	timeTickerCleanCache = 1 * time.Minute
 )
 
+// Service содержит бизнес-логику для работы с заказами
 type Service struct {
 	repo     Repository
 	cache    map[string]cacheEntry
@@ -23,10 +24,11 @@ type Service struct {
 }
 
 type cacheEntry struct {
-	order     models.OrderJson
+	order     models.OrderJSON
 	expiresAt time.Time
 }
 
+// NewService создает новый экземпляр Service
 func NewService(repo *Repository, logger *logrus.Logger) *Service {
 	service := &Service{
 		repo:     *repo,
@@ -39,16 +41,20 @@ func NewService(repo *Repository, logger *logrus.Logger) *Service {
 
 	return service
 }
-func (s *Service) Create(ctx context.Context, orderJson *models.OrderJson) error {
-	err := s.repo.Create(ctx, orderJson)
+
+// Create обрабатывает создание нового заказа
+func (s *Service) Create(ctx context.Context, orderJSON *models.OrderJSON) error {
+	err := s.repo.Create(ctx, orderJSON)
 	if err != nil {
 		return err
 	}
 
-	s.invalidateCache(orderJson.OrderUID)
+	s.invalidateCache(orderJSON.OrderUID)
 	return nil
 }
-func (s *Service) GetOrder(ctx context.Context, orderUID string) (*models.OrderJson, error) {
+
+// GetOrder возвращает заказ по его UID
+func (s *Service) GetOrder(ctx context.Context, orderUID string) (*models.OrderJSON, error) {
 	if order, found := s.getFromCache(orderUID); found {
 		s.logger.Info("Service.GetOrder: Get Order From CACHE")
 		return order, nil
@@ -68,6 +74,7 @@ func (s *Service) GetOrder(ctx context.Context, orderUID string) (*models.OrderJ
 	return order, nil
 }
 
+// WarmUpCache предзагружает данные в кэш при запуске сервиса
 func (s *Service) WarmUpCache(ctx context.Context) error {
 	orders, err := s.repo.GetAll(ctx)
 	if err != nil {
@@ -102,10 +109,10 @@ func (s *Service) cleanExpiredCache() {
 	defer s.cacheMu.Unlock()
 
 	now := time.Now()
-	for order_uid, entry := range s.cache {
+	for orderUID, entry := range s.cache {
 		if now.After(entry.expiresAt) {
-			delete(s.cache, order_uid)
-			s.logger.Infof("Cache EXPIRED: %s", order_uid)
+			delete(s.cache, orderUID)
+			s.logger.Infof("Cache EXPIRED: %s", orderUID)
 		}
 	}
 }
@@ -118,7 +125,7 @@ func (s *Service) invalidateCache(orderUID string) {
 	s.logger.Infof("Cache invalidated for order: %s", orderUID)
 }
 
-func (s *Service) setToCache(orderUID string, order *models.OrderJson) {
+func (s *Service) setToCache(orderUID string, order *models.OrderJSON) {
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
 	s.cache[orderUID] = cacheEntry{
@@ -126,7 +133,7 @@ func (s *Service) setToCache(orderUID string, order *models.OrderJson) {
 		expiresAt: time.Now().Add(s.cacheTTL),
 	}
 }
-func (s *Service) getFromCache(orderUID string) (*models.OrderJson, bool) {
+func (s *Service) getFromCache(orderUID string) (*models.OrderJSON, bool) {
 	s.cacheMu.RLock()
 	defer s.cacheMu.RUnlock()
 

@@ -1,3 +1,4 @@
+// Package config предоставляет функции для загрузки конфигурации
 package config
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// KafkaConfig содержит конфигурацию для подключения к Kafka
 type KafkaConfig struct {
 	KafkaURL      string
 	Topic         string
@@ -15,6 +17,7 @@ type KafkaConfig struct {
 	Logger        *logrus.Logger
 }
 
+// LoadKafkaConfig загружает конфигурацию Kafka из переменных окружения
 func LoadKafkaConfig(logger *logrus.Logger) (*KafkaConfig, error) {
 	envPath := filepath.Join("configs", ".env")
 	if err := godotenv.Load(envPath); err != nil {
