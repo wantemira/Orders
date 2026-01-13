@@ -18,7 +18,11 @@ func createValidJSON() ([]byte, error) {
 
 func ExternalSend(config config.KafkaConfig) {
 	producer := messaging.NewKafkaProducer([]string{config.KafkaURL})
-	defer producer.Close()
+	defer func() {
+		if err := producer.Close(); err != nil {
+			config.Logger.Errorf("failed to close producer: %v", err)
+		}
+	}()
 	for range countMsg {
 		jsonBytes, err := createValidJSON()
 		if err != nil {
