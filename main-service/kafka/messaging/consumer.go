@@ -10,6 +10,7 @@ import (
 	"orders/internal/subs"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/segmentio/kafka-go"
 	"github.com/sirupsen/logrus"
 )
@@ -91,6 +92,16 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 			return fmt.Errorf("commit invalid message: %w", commitErr)
 		}
 		log.Warn("KafkaConsumer.ConsumeMessage: Invalid message skipped and committed")
+		return nil
+	}
+	validate := validator.New()
+	if err := validate.Struct(order); err != nil {
+		log.Errorf("KafkaConsumer.ConsumeMessage: Validation failed: %v", err)
+		if err := c.reader.CommitMessages(ctx, kafkaMsg); err != nil {
+			log.Errorf("KafkaConsumer.ConsumeMessage: failed to commit invalid message: %v", err)
+			return fmt.Errorf("commit invalid message: %w", err)
+		}
+		log.Warn("KafkaConsumer.ConsumeMessage: Invalid data skipped and commited")
 		return nil
 	}
 
