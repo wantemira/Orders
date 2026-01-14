@@ -17,6 +17,13 @@ var (
 	errNotFound = errors.New("record not found")
 )
 
+// OrderRepository определяет интерфейс для работы с заказами в БД
+type OrderRepository interface {
+	Create(ctx context.Context, orderJSON *models.OrderJSON) error
+	GetAll(ctx context.Context) ([]models.OrderJSON, error)
+	GetOrder(ctx context.Context, orderUID string) (*models.OrderJSON, error)
+}
+
 // Repository управляет доступом к данным в базе данных
 type Repository struct {
 	client *pgx.Conn

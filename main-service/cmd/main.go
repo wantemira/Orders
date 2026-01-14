@@ -78,8 +78,9 @@ func setupApplication() (*Application, error) {
 		logger.Errorf("main.setupApplication: [POSTGRES]: Error with setup db: %v", err)
 		return nil, fmt.Errorf("main.setupApplication: %v", err)
 	}
+	cache := subs.NewInMemoryCache(logger)
 	subsRepo := subs.NewRepository(conn, logger)
-	subsService := subs.NewService(subsRepo, logger)
+	subsService := subs.NewService(subsRepo, logger, cache)
 	subsHandler := subs.NewHandler(subsService, logger)
 
 	kafkaCfg, err := config.LoadKafkaConfig(logger)
