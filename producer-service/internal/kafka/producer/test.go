@@ -1,7 +1,7 @@
 package producer
 
 import (
-	"producer-service/internal/models"
+	"producer-service/pkg/models"
 	"strconv"
 	"time"
 
