@@ -4,8 +4,8 @@ package router
 import (
 	"fmt"
 	"net/http"
-	"orders/internal/config"
 	"orders/internal/subs"
+	utilsCfg "orders/pkg/config"
 
 	"github.com/sirupsen/logrus"
 )
@@ -27,7 +27,7 @@ func NewServer(handler *subs.Handler, logger *logrus.Logger) *Server {
 // Run запускает HTTP сервер
 func (s *Server) Run() {
 	http.HandleFunc("/order/{order_uid}", s.handler.GetOrderFromHTTP)
-	port := config.GetEnv("PORT", "8081")
+	port := utilsCfg.GetEnv("PORT", "8081")
 	server := &http.Server{
 		Addr: fmt.Sprintf(":%s", port),
 	}

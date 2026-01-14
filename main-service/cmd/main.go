@@ -8,6 +8,7 @@ import (
 	"orders/internal/database"
 	"orders/internal/subs"
 	"orders/kafka/messaging"
+	utilsCfg "orders/pkg/config"
 	"orders/router"
 	"os"
 	"os/signal"
@@ -110,7 +111,7 @@ func setupLogger() *logrus.Logger {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 
-	loggerLevelStr := config.GetEnv("LOGGER_LEVEL", logrus.DebugLevel.String())
+	loggerLevelStr := utilsCfg.GetEnv("LOGGER_LEVEL", logrus.DebugLevel.String())
 
 	loggerLevel, err := logrus.ParseLevel(loggerLevelStr)
 	if err != nil {

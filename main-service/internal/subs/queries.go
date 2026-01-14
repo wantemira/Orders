@@ -2,7 +2,7 @@ package subs
 
 import (
 	"context"
-	"orders/internal/models"
+	"orders/pkg/models"
 
 	"github.com/jackc/pgx/v5"
 )

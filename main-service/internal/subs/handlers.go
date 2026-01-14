@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"orders/internal/models"
+	"orders/pkg/models"
 	"strings"
 	"time"
 

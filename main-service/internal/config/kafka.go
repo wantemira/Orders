@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"orders/pkg/config"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
@@ -25,9 +26,9 @@ func LoadKafkaConfig(logger *logrus.Logger) (*KafkaConfig, error) {
 		return nil, fmt.Errorf("config.LoadPostgresConfig: %w", err)
 	}
 	config := &KafkaConfig{
-		KafkaURL:      GetEnv("KAFKA_URL", "kafka:9092"),
-		Topic:         GetEnv("TEST_TOPIC", "test_topic"),
-		GroupConsumer: GetEnv("GROUP_ID", "test_group"),
+		KafkaURL:      config.GetEnv("KAFKA_URL", "kafka:9092"),
+		Topic:         config.GetEnv("TEST_TOPIC", "test_topic"),
+		GroupConsumer: config.GetEnv("GROUP_ID", "test_group"),
 	}
 	return config, nil
 }

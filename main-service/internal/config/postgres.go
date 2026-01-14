@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"orders/pkg/config"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
@@ -25,11 +26,11 @@ func LoadPostgresConfig(logger *logrus.Logger) (*PostgresConfig, error) {
 		return nil, fmt.Errorf("config.LoadPostgresConfig: %w", err)
 	}
 	config := &PostgresConfig{
-		Host:     GetEnv("DB_HOST", "localhost"),
-		Port:     GetEnv("DB_PORT", "5432"),
-		Name:     GetEnv("DB_NAME", "Orders"),
-		User:     GetEnv("DB_USER", "postgres"),
-		Password: GetEnv("DB_PASSWORD", "password"),
+		Host:     config.GetEnv("DB_HOST", "localhost"),
+		Port:     config.GetEnv("DB_PORT", "5432"),
+		Name:     config.GetEnv("DB_NAME", "Orders"),
+		User:     config.GetEnv("DB_USER", "postgres"),
+		Password: config.GetEnv("DB_PASSWORD", "password"),
 	}
 	return config, nil
 }

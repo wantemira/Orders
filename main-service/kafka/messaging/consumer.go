@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"orders/internal/models"
 	"orders/internal/subs"
+	"orders/pkg/models"
 	"time"
 
 	"github.com/go-playground/validator/v10"

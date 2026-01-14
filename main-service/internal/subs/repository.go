@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"orders/internal/models"
+	"orders/pkg/models"
 	"sync"
 
 	"github.com/jackc/pgx/v5"

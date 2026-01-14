@@ -1,7 +1,7 @@
 package subs
 
 import (
-	"orders/internal/models"
+	"orders/pkg/models"
 	"sync"
 	"time"
 

@@ -1,3 +1,4 @@
+// Package config предоставляет общие функции для загрузки конфигурации
 package config
 
 import "os"
