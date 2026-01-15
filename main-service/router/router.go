@@ -2,6 +2,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"orders/internal/subs"
@@ -12,29 +13,36 @@ import (
 
 // Server представляет HTTP сервер приложения
 type Server struct {
-	handler *subs.Handler
-	logger  *logrus.Logger
+	httpServer *http.Server
+	handler    *subs.Handler
+	logger     *logrus.Logger
+	name       string
 }
 
 // NewServer создает новый HTTP сервер
 func NewServer(handler *subs.Handler, logger *logrus.Logger) *Server {
+	port := utilsCfg.GetEnv("PORT", "8081")
+	server := &http.Server{
+		Addr: fmt.Sprintf(":%s", port),
+	}
 	return &Server{
-		handler: handler,
-		logger:  logger,
+		httpServer: server,
+		handler:    handler,
+		logger:     logger,
+		name:       "http server",
 	}
 }
 
 // Run запускает HTTP сервер
 func (s *Server) Run() {
 	http.HandleFunc("/order/{order_uid}", s.handler.GetOrderFromHTTP)
-	port := utilsCfg.GetEnv("PORT", "8081")
-	server := &http.Server{
-		Addr: fmt.Sprintf(":%s", port),
-	}
 
-	if err := server.ListenAndServe(); err != nil {
+	if err := s.httpServer.ListenAndServe(); err != nil {
 		s.logger.Errorf("Server.Run: error with listen server %v", err)
 	}
 
-	s.logger.Infof("Server.Run: Server UP: http://localhost:%s/order", port)
+	s.logger.Infof("Server.Run: Server UP: http://localhost:%s/order", s.httpServer.Addr)
 }
+
+func (s *Server) Name() string                    { return s.name }
+func (s *Server) Close(ctx context.Context) error { return s.httpServer.Shutdown(ctx) }

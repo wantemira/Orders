@@ -12,6 +12,7 @@ import (
 type HandlerDB struct {
 	conn   *pgx.Conn
 	logger *logrus.Logger
+	name   string
 }
 
 // NewHandlerDB создает новый экземпляр HandlerDB
@@ -19,6 +20,7 @@ func NewHandlerDB(conn *pgx.Conn, logger *logrus.Logger) *HandlerDB {
 	return &HandlerDB{
 		conn:   conn,
 		logger: logger,
+		name:   "database",
 	}
 }
 
@@ -52,3 +54,6 @@ func (h *HandlerDB) CreateTables(ctx context.Context, _ *pgx.Conn) error {
 
 	return tx.Commit(ctx)
 }
+
+func (h *HandlerDB) Name() string                    { return h.name }
+func (h *HandlerDB) Close(ctx context.Context) error { return h.conn.Close(ctx) }

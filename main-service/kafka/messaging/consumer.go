@@ -20,6 +20,7 @@ type KafkaConsumer struct {
 	reader  *kafka.Reader
 	logger  *logrus.Logger
 	handler *subs.Handler
+	name    string
 }
 
 // NewKafkaConsumer создает новый экземпляр KafkaConsumer
@@ -37,6 +38,7 @@ func NewKafkaConsumer(brokers []string, topic string, groupID string, logger *lo
 		reader:  reader,
 		logger:  logger,
 		handler: handler,
+		name:    "kafka consumer",
 	}
 }
 
@@ -127,7 +129,9 @@ func (c *KafkaConsumer) Commit(ctx context.Context, msg kafka.Message) error {
 }
 
 // Close закрывает соединение с Kafka
-func (c *KafkaConsumer) Close() error {
+func (c *KafkaConsumer) Close(ctx context.Context) error {
 	c.logger.Info("KafkaConsumer.Close: Closing Kafka consumer")
 	return c.reader.Close()
 }
+
+func (c *KafkaConsumer) Name() string { return c.name }

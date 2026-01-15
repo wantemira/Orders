@@ -8,19 +8,15 @@ import (
 	"orders/internal/database"
 	"orders/internal/subs"
 	"orders/kafka/messaging"
+	"orders/pkg/closer"
 	utilsCfg "orders/pkg/config"
 	"orders/router"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 )
 
 type Application struct {
-	logger      *logrus.Logger
-	db          *pgx.Conn // unused / check mb delete field
 	DBHandler   *database.HandlerDB
 	subsService *subs.Service
 	subsHandler *subs.Handler
@@ -31,54 +27,46 @@ type Application struct {
 }
 
 func main() {
-	app, err := setupApplication()
+	logger := setupLogger()
+	manager := closer.NewManager(logger)
+
+	app, err := setupApplication(logger, manager)
 	if err != nil {
-		app.logger.Fatalf("main: Error with Setup Application")
+		logger.Fatalf("main: Error with Setup Application")
 	}
-	// CACHE
+	// Cache
 	if err := app.subsService.WarmUpCache(context.Background()); err != nil {
-		app.logger.Warnf("main: [CACHE]: Failed to warm up: %v", err)
+		logger.Warnf("main: [CACHE]: Failed to warm up: %v", err)
 	}
-	app.logger.Infof("main: [CACHE]: Warm up")
+	logger.Infof("main: [CACHE]: Warm up")
 
-	ctx, stop := signal.NotifyContext(
-		context.Background(),
-		os.Interrupt,
-		syscall.SIGTERM)
-	defer stop()
-
-	// SERVER
+	// Server
+	logger.Infof("main: [HTTP SERVER]: Run")
 	go app.server.Run()
 
-	// KAFKA CONSUMER
-	defer func() {
-		if err := app.consumer.Close(); err != nil {
-			app.logger.Errorf("failed to close consumer: %v", err)
-		}
-	}()
+	// Kafka
+	logger.Infof("main: [KAFKA CONSUMER]: Run")
+	go app.consumer.Run(context.Background())
 
-	app.logger.Infof("main: [KAFKA_CONSUMER]: Run")
-	app.consumer.Run(ctx)
-
-	<-ctx.Done()
-	app.logger.Info("[GLOBAL]: Service stopped..")
+	manager.WaitForSignal()
+	logger.Info("[GLOBAL]: Service stopped..")
 }
 
-func setupApplication() (*Application, error) {
-	logger := setupLogger()
+func setupApplication(logger *logrus.Logger, manager *closer.Manager) (*Application, error) {
 
 	postgresCfg, err := config.LoadPostgresConfig(logger) // "postgres://postgres:password@postgres:5432/Orders"
 	if err != nil {
-		logger.Errorf("main.setupApplication: [POSTGRES]: Error with load config: %v", err)
-		// return nil, fmt.Errorf("main.setupApplication: %v", err)
+		return nil, fmt.Errorf("load postgres config: %w", err)
 	}
+
 	URL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", postgresCfg.User, postgresCfg.Password, postgresCfg.Host, postgresCfg.Port, postgresCfg.Name)
 	logger.Infof("main.setupApplication: [POSTGRES] Config was Load: %+v\n URL: %s", postgresCfg, URL)
 	conn, dbHandler, err := setupDatabase(URL, logger)
 	if err != nil {
-		logger.Errorf("main.setupApplication: [POSTGRES]: Error with setup db: %v", err)
-		return nil, fmt.Errorf("main.setupApplication: %v", err)
+		return nil, fmt.Errorf("setup database: %w", err)
 	}
+	manager.Add(dbHandler)
+
 	cache := subs.NewInMemoryCache(logger)
 	subsRepo := subs.NewRepository(conn, logger)
 	subsService := subs.NewService(subsRepo, logger, cache)
@@ -86,16 +74,16 @@ func setupApplication() (*Application, error) {
 
 	kafkaCfg, err := config.LoadKafkaConfig(logger)
 	if err != nil {
-		logger.Errorf("main.setupApplication:: [KAFKA]: Error with load config: %v", err)
-		// return nil, fmt.Errorf("main.setupApplication: %v", err)
+		return nil, fmt.Errorf("load kafka config: %w", err)
 	}
-	logger.Infof("main.setupApplication:: [KAFKA]: Config was Load: %+v", kafkaCfg)
+
 	kafkaConsumer := messaging.NewKafkaConsumer([]string{kafkaCfg.KafkaURL}, kafkaCfg.Topic, kafkaCfg.GroupConsumer, logger, subsHandler)
+	manager.Add(kafkaConsumer)
 
 	server := router.NewServer(subsHandler, logger)
+	manager.Add(server)
+
 	return &Application{
-		logger:      logger,
-		db:          conn,
 		DBHandler:   dbHandler,
 		subsService: subsService,
 		subsHandler: subsHandler,

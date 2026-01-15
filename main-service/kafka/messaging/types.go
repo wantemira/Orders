@@ -27,5 +27,6 @@ type Consumer interface {
 	Run(ctx context.Context)
 	ConsumeMessage(ctx context.Context) error
 	Commit(ctx context.Context, msg kafka.Message) error
-	Close() error
+	Close(ctx context.Context) error
+	Name() string
 }
