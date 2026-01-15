@@ -1,4 +1,4 @@
-package producer
+package sender
 
 import (
 	"producer-service/pkg/models"
