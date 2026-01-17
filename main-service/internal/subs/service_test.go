@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// TestCache_Get тестирует получение данных из кэша
-func TestCache_Get(t *testing.T) {
+// TestService_Get тестирует получение данных из кэша
+func TestService_Get(t *testing.T) {
 	mockRepo := &mocks.OrderRepository{}
 	mockCache := &mocks.Cache{}
 
@@ -43,8 +43,8 @@ func TestCache_Get(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestCache_GetFromDB тестирует получение данных из БД
-func TestCache_GetFromDB(t *testing.T) {
+// TestService_GetFromDB тестирует получение данных из БД
+func TestService_GetFromDB(t *testing.T) {
 	mockRepo := &mocks.OrderRepository{}
 	mockCache := &mocks.Cache{}
 
@@ -74,7 +74,7 @@ func TestCache_GetFromDB(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestCache_GetFromDB тестирует на ошибку при получении данных из БД
+// TestService_GetFromDB тестирует на ошибку при получении данных из БД
 func TestService_GetOrder_NotFound(t *testing.T) {
 	mockRepo := &mocks.OrderRepository{}
 	mockCache := &mocks.Cache{}
@@ -95,8 +95,8 @@ func TestService_GetOrder_NotFound(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestCache_WarmUpCache тестирует предзагрузку кэша
-func TestCache_WarmUpCache(t *testing.T) {
+// TestService_WarmUpCache тестирует предзагрузку кэша
+func TestService_WarmUpCache(t *testing.T) {
 	mockRepo := &mocks.OrderRepository{}
 	mockCache := &mocks.Cache{}
 
@@ -126,8 +126,8 @@ func TestCache_WarmUpCache(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestCache_Create тестирует создание записи в репозитории и удалении записи из кэша
-func TestCache_Create(t *testing.T) {
+// TestService_Create тестирует создание записи в репозитории и удалении записи из кэша
+func TestService_Create(t *testing.T) {
 	mockRepo := &mocks.OrderRepository{}
 	mockCache := &mocks.Cache{}
 
@@ -154,7 +154,7 @@ func TestCache_Create(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestCache_Create тестирует ошибку при создание записи в репозитории
+// TestService_Create тестирует ошибку при создание записи в репозитории
 func TestService_Create_DBFails(t *testing.T) {
 	mockRepo := &mocks.OrderRepository{}
 	mockCache := &mocks.Cache{}
