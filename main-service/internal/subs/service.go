@@ -15,7 +15,7 @@ type Service struct {
 }
 
 // NewService создает новый экземпляр Service
-func NewService(repo *Repository, logger *logrus.Logger, cache Cache) *Service {
+func NewService(repo OrderRepository, logger *logrus.Logger, cache Cache) *Service {
 	service := &Service{
 		repo:   repo,
 		cache:  cache,
@@ -65,5 +65,4 @@ func (s *Service) WarmUpCache(ctx context.Context) error {
 		return err
 	}
 	return s.cache.WarmUpCache(orders)
-
 }
