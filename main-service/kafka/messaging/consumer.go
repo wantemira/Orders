@@ -17,14 +17,15 @@ import (
 
 // KafkaConsumer реализует Consumer для чтения сообщений из Kafka
 type KafkaConsumer struct {
-	reader  *kafka.Reader
-	logger  *logrus.Logger
-	handler *subs.Handler
-	name    string
+	reader     *kafka.Reader
+	logger     *logrus.Logger
+	handler    *subs.Handler
+	name       string
+	maxRetries int
 }
 
 // NewKafkaConsumer создает новый экземпляр KafkaConsumer
-func NewKafkaConsumer(brokers []string, topic string, groupID string, logger *logrus.Logger, handler *subs.Handler) Consumer {
+func NewKafkaConsumer(brokers []string, topic string, groupID string, logger *logrus.Logger, handler *subs.Handler, maxRetries int) Consumer {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        brokers,
 		Topic:          topic,
@@ -35,10 +36,11 @@ func NewKafkaConsumer(brokers []string, topic string, groupID string, logger *lo
 	})
 
 	return &KafkaConsumer{
-		reader:  reader,
-		logger:  logger,
-		handler: handler,
-		name:    "kafka consumer",
+		reader:     reader,
+		logger:     logger,
+		handler:    handler,
+		name:       "kafka consumer",
+		maxRetries: maxRetries,
 	}
 }
 
@@ -87,39 +89,45 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 	log.Info("KafkaConsumer.Run: Received kafka message")
 	var order *models.OrderJSON
 	if err := json.Unmarshal(kafkaMsg.Value, &order); err != nil {
-		log.Errorf("KafkaConsumer.ConsumeMessage: Failed to unmarshal message: %v. Message %s", err, string(kafkaMsg.Value))
-
-		if commitErr := c.reader.CommitMessages(ctx, kafkaMsg); commitErr != nil {
-			log.Errorf("KafkaConsumer.ConsumeMessage: Failed to commit invalid message: %v", commitErr)
-			return fmt.Errorf("commit invalid message: %w", commitErr)
-		}
-		log.Warn("KafkaConsumer.ConsumeMessage: Invalid message skipped and committed")
+		c.handlePermanentErr(ctx, log, kafkaMsg, "json_unmarshal", err)
 		return nil
 	}
 	validate := validator.New()
 	if err := validate.Struct(order); err != nil {
-		log.Errorf("KafkaConsumer.ConsumeMessage: Validation failed: %v", err)
-		if err := c.reader.CommitMessages(ctx, kafkaMsg); err != nil {
-			log.Errorf("KafkaConsumer.ConsumeMessage: failed to commit invalid message: %v", err)
-			return fmt.Errorf("commit invalid message: %w", err)
-		}
-		log.Warn("KafkaConsumer.ConsumeMessage: Invalid data skipped and commited")
+		c.handlePermanentErr(ctx, log, kafkaMsg, "validation", err)
 		return nil
 	}
 
 	log = log.WithField("order_uid", order.OrderUID)
-	log.Info("KafkaConsumer.Run: Read Message")
-	if err = c.handler.Create(ctx, order); err != nil {
-		log.Errorf("KafkaConsumer.ConsumeMessage: %v", err)
-		return fmt.Errorf("failed to create order %s. error: %w", order.OrderUID, err)
+	var lastErr error
+	for attempt := 1; attempt <= c.maxRetries; attempt++ {
+		log.WithField("attempt", attempt).Info("Processing order")
 
-	}
-	if err = c.Commit(ctx, kafkaMsg); err != nil {
-		log.Errorf("KafkaConsumer.ConsumeMessage: %v", err)
-		return fmt.Errorf("failed to commit message %s. error: %w", order.OrderUID, err)
+		if err = c.handler.Create(ctx, order); err == nil {
+			if commitErr := c.Commit(ctx, kafkaMsg); commitErr != nil {
+				log.Errorf("Failed to commit after success: %v", commitErr)
+			}
+			log.Info("Order processed successfully")
+			return nil
+		}
 
+		lastErr = err
+
+		if c.isTemporaryError(err) && attempt < c.maxRetries {
+			backoff := time.Duration(attempt) * time.Second
+			log.WithField("backoff_seconds", attempt).Warnf("Temporary error, retrying %v", err)
+			time.Sleep(backoff)
+			continue
+		}
+
+		break
 	}
-	log.Info("KafkaConsumer.Run: Commit Message")
+	c.handleProcessingErr(ctx, log, kafkaMsg, order, lastErr, c.maxRetries)
+
+	if commitErr := c.Commit(ctx, kafkaMsg); commitErr != nil {
+		log.Errorf("Failed to commit after error %v", commitErr)
+	}
+
 	return nil
 }
 
