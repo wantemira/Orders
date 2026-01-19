@@ -77,7 +77,8 @@ func setupApplication(logger *logrus.Logger, manager *closer.Manager) (*Applicat
 		return nil, fmt.Errorf("load kafka config: %w", err)
 	}
 
-	kafkaConsumer := messaging.NewKafkaConsumer([]string{kafkaCfg.KafkaURL}, kafkaCfg.Topic, kafkaCfg.GroupConsumer, logger, subsHandler)
+	maxRetries := 3
+	kafkaConsumer := messaging.NewKafkaConsumer([]string{kafkaCfg.KafkaURL}, kafkaCfg.Topic, kafkaCfg.GroupConsumer, logger, subsHandler, maxRetries)
 	manager.Add(kafkaConsumer)
 
 	server := router.NewServer(subsHandler, logger)
