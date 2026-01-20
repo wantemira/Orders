@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"orders/pkg/config"
 	"path/filepath"
 
@@ -23,7 +22,7 @@ func LoadPostgresConfig(logger *logrus.Logger) (*PostgresConfig, error) {
 	envPath := filepath.Join("configs", ".env")
 	if err := godotenv.Load(envPath); err != nil {
 		logger.Errorf("config.LoadPostgresConfig: %v", err)
-		return nil, fmt.Errorf("config.LoadPostgresConfig: %w", err)
+		// return nil, fmt.Errorf("config.LoadPostgresConfig: %w", err)
 	}
 	config := &PostgresConfig{
 		Host:     config.GetEnv("DB_HOST", "localhost"),

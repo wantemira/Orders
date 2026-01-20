@@ -2,7 +2,6 @@
 package config
 
 import (
-	"fmt"
 	"orders/pkg/config"
 	"path/filepath"
 
@@ -23,7 +22,7 @@ func LoadKafkaConfig(logger *logrus.Logger) (*KafkaConfig, error) {
 	envPath := filepath.Join("configs", ".env")
 	if err := godotenv.Load(envPath); err != nil {
 		logger.Errorf("config.LoadPostgresConfig: %v", err)
-		return nil, fmt.Errorf("config.LoadPostgresConfig: %w", err)
+		// return nil, fmt.Errorf("config.LoadPostgresConfig: %w", err)
 	}
 	config := &KafkaConfig{
 		KafkaURL:      config.GetEnv("KAFKA_URL", "kafka:9092"),
