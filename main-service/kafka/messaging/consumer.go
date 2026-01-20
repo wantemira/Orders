@@ -6,13 +6,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"orders/internal/metrics"
 	"orders/internal/subs"
 	"orders/pkg/models"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/segmentio/kafka-go"
 	"github.com/sirupsen/logrus"
+)
+
+var (
+	kafkaMessagesTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "kafka_messages_total",
+			Help: "Total kafka messages processed",
+		},
+		[]string{"topic", "status", "error_type"},
+	)
 )
 
 // KafkaConsumer реализует Consumer для чтения сообщений из Kafka
@@ -72,16 +85,30 @@ func (c *KafkaConsumer) Run(ctx context.Context) {
 
 // ConsumeMessage читает и обрабатывает сообщения из Kafka
 func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
+	startTime := time.Now()
+	var timeMetricStatus string
+	topic := c.reader.Config().Topic
+
+	defer func() {
+		processingDuration := time.Since(startTime).Seconds()
+		metrics.KafkaMessageProcessingDuration.WithLabelValues(topic, timeMetricStatus).Observe(processingDuration)
+	}()
+	timeMetricStatus = "error"
+
+	kafkaMessagesTotal.WithLabelValues(topic, "received", "none").Inc()
+
 	kafkaMsg, err := c.reader.ReadMessage(ctx)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
+			kafkaMessagesTotal.WithLabelValues(topic, "error", "context_canceled").Inc()
 			return err
 		}
+		kafkaMessagesTotal.WithLabelValues(topic, "error", "fetch_message").Inc()
 		c.logger.Errorf("KafkaConsumer.ConsumeMessage: failed to fetch msg: %v", err)
 		return fmt.Errorf("fetch message: %w", err)
 	}
 	log := c.logger.WithFields(logrus.Fields{
-		"topic":     kafkaMsg.Topic,
+		"topic":     topic,
 		"partition": kafkaMsg.Partition,
 		"offset":    kafkaMsg.Offset,
 		"key":       kafkaMsg.Key,
@@ -89,26 +116,28 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 	log.Info("KafkaConsumer.Run: Received kafka message")
 	var order *models.OrderJSON
 	if err := json.Unmarshal(kafkaMsg.Value, &order); err != nil {
+		kafkaMessagesTotal.WithLabelValues(topic, "error", "parse").Inc()
 		c.handlePermanentErr(ctx, log, kafkaMsg, "json_unmarshal", err)
 		return nil
 	}
 	validate := validator.New()
 	if err := validate.Struct(order); err != nil {
+		kafkaMessagesTotal.WithLabelValues(topic, "error", "validation").Inc()
 		c.handlePermanentErr(ctx, log, kafkaMsg, "validation", err)
 		return nil
 	}
 
 	log = log.WithField("order_uid", order.OrderUID)
-	var lastErr error
+	var lastErr, commitErr error
+	processingSuccess := false
+	attempts := 0
+
 	for attempt := 1; attempt <= c.maxRetries; attempt++ {
 		log.WithField("attempt", attempt).Info("Processing order")
-
+		attempts = attempt
 		if err = c.handler.Create(ctx, order); err == nil {
-			if commitErr := c.Commit(ctx, kafkaMsg); commitErr != nil {
-				log.Errorf("Failed to commit after success: %v", commitErr)
-			}
-			log.Info("Order processed successfully")
-			return nil
+			processingSuccess = true
+			break
 		}
 
 		lastErr = err
@@ -122,11 +151,27 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 
 		break
 	}
-	c.handleProcessingErr(ctx, log, kafkaMsg, order, lastErr, c.maxRetries)
-
-	if commitErr := c.Commit(ctx, kafkaMsg); commitErr != nil {
-		log.Errorf("Failed to commit after error %v", commitErr)
+	finalStatus := "error"
+	if processingSuccess {
+		finalStatus = "success"
 	}
+	metrics.KafkaProcessingAttempts.WithLabelValues(topic, finalStatus).Observe(float64(attempts))
+
+	if !processingSuccess {
+		kafkaMessagesTotal.WithLabelValues(topic, "error", "processing").Inc()
+	} else {
+		if commitErr = c.Commit(ctx, kafkaMsg); commitErr != nil {
+			kafkaMessagesTotal.WithLabelValues(topic, "error", "commit").Inc()
+			log.Errorf("Failed to commit after error %v", commitErr)
+		} else {
+			kafkaMessagesTotal.WithLabelValues(topic, "success", "none").Inc()
+		}
+	}
+
+	if processingSuccess && commitErr == nil {
+		timeMetricStatus = "success"
+	}
+	c.handleProcessingErr(ctx, log, kafkaMsg, order, lastErr, c.maxRetries)
 
 	return nil
 }
