@@ -8,6 +8,7 @@ import (
 	"orders/internal/subs"
 	utilsCfg "orders/pkg/config"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,6 +36,7 @@ func NewServer(handler *subs.Handler, logger *logrus.Logger) *Server {
 
 // Run запускает HTTP сервер
 func (s *Server) Run() {
+	http.Handle("/metrics", promhttp.Handler())
 	http.HandleFunc("/order/{order_uid}", s.handler.GetOrderFromHTTP)
 
 	if err := s.httpServer.ListenAndServe(); err != nil {
