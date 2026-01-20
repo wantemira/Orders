@@ -2,8 +2,10 @@ package subs
 
 import (
 	"context"
+	"orders/internal/metrics"
 	"orders/pkg/models"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,12 +29,18 @@ func NewService(repo OrderRepository, logger *logrus.Logger, cache Cache) *Servi
 
 // Create обрабатывает создание нового заказа
 func (s *Service) Create(ctx context.Context, orderJSON *models.OrderJSON) error {
+	timer := prometheus.NewTimer(metrics.OrderProcessingDuration.WithLabelValues("create"))
+	defer timer.ObserveDuration()
+
 	err := s.repo.Create(ctx, orderJSON)
 	if err != nil {
+		metrics.OrdersCreatedTotal.WithLabelValues("error").Inc()
 		return err
 	}
 
+	metrics.OrdersCreatedTotal.WithLabelValues("success").Inc()
 	s.cache.Delete(orderJSON.OrderUID)
+
 	return nil
 }
 
