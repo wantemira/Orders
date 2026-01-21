@@ -20,7 +20,7 @@ var (
 			Help:    "Time spent processing order",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"handler"},
+		[]string{"operation"},
 	)
 
 	OrdersInCache = promauto.NewGauge(
