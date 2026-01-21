@@ -1,6 +1,7 @@
 package subs
 
 import (
+	"orders/internal/metrics"
 	"orders/pkg/models"
 	"sync"
 	"time"
@@ -62,9 +63,15 @@ func (c *InMemoryCache) Set(key string, value *models.OrderJSON) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	_, existed := c.data[key]
+
 	c.data[key] = cacheEntry{
 		order:     *value,
 		expiresAt: time.Now().Add(c.ttl),
+	}
+
+	if !existed {
+		metrics.OrdersInCache.Inc()
 	}
 }
 
@@ -73,7 +80,14 @@ func (c *InMemoryCache) Delete(orderUID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	_, existed := c.data[orderUID]
+	if !existed {
+		c.logger.Warnf("Attempt to delete non-existent cache entry: %s", orderUID)
+		return
+	}
+
 	delete(c.data, orderUID)
+	metrics.OrdersInCache.Dec()
 	c.logger.Infof("Cache invalidated for order: %s", orderUID)
 }
 
@@ -84,9 +98,15 @@ func (c *InMemoryCache) WarmUpCache(orders []models.OrderJSON) error {
 
 	now := time.Now()
 	for _, order := range orders {
+		_, existed := c.data[order.OrderUID]
+
 		c.data[order.OrderUID] = cacheEntry{
 			order:     order,
 			expiresAt: now.Add(c.ttl),
+		}
+
+		if !existed {
+			metrics.OrdersInCache.Inc()
 		}
 	}
 	c.logger.Infof("Cache warmed up with %d orders", len(orders))
@@ -105,11 +125,16 @@ func (c *InMemoryCache) cleanExpiredCache() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	expiredCount := 0
 	now := time.Now()
 	for orderUID, entry := range c.data {
 		if now.After(entry.expiresAt) {
 			delete(c.data, orderUID)
+			expiredCount++
 			c.logger.Infof("Cache EXPIRED: %s", orderUID)
 		}
+	}
+	if expiredCount > 0 {
+		metrics.OrdersInCache.Set(float64(len(c.data)))
 	}
 }
