@@ -8,9 +8,43 @@ import (
 	"orders/internal/subs"
 	utilsCfg "orders/pkg/config"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
+
+var (
+	httpRequestTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total HTTP requests",
+		},
+		[]string{"method", "path", "status"},
+	)
+
+	httpRequestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "HTTP request duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "path", "status"},
+	)
+)
+
+func MetricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(func(v float64) {
+			httpRequestDuration.WithLabelValues(r.Method, r.URL.Path, "").Observe(v)
+		}))
+
+		next.ServeHTTP(w, r)
+
+		timer.ObserveDuration()
+		httpRequestTotal.WithLabelValues(r.Method, r.URL.Path, "").Inc()
+	})
+}
 
 // Server представляет HTTP сервер приложения
 type Server struct {
@@ -36,8 +70,11 @@ func NewServer(handler *subs.Handler, logger *logrus.Logger) *Server {
 
 // Run запускает HTTP сервер
 func (s *Server) Run() {
-	http.Handle("/metrics", promhttp.Handler())
-	http.HandleFunc("/order/{order_uid}", s.handler.GetOrderFromHTTP)
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/order/{order_uid}", s.handler.GetOrderFromHTTP)
+
+	s.httpServer.Handler = MetricsMiddleware(mux)
 
 	if err := s.httpServer.ListenAndServe(); err != nil {
 		s.logger.Errorf("Server.Run: error with listen server %v", err)
