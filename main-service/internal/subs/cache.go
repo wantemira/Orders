@@ -63,16 +63,12 @@ func (c *InMemoryCache) Set(key string, value *models.OrderJSON) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, existed := c.data[key]
-
 	c.data[key] = cacheEntry{
 		order:     *value,
 		expiresAt: time.Now().Add(c.ttl),
 	}
 
-	if !existed {
-		metrics.OrdersInCache.Inc()
-	}
+	metrics.OrdersInCache.Set(float64(len(c.data)))
 }
 
 // Delete удаляет заказ из кэша
@@ -87,7 +83,7 @@ func (c *InMemoryCache) Delete(orderUID string) {
 	}
 
 	delete(c.data, orderUID)
-	metrics.OrdersInCache.Dec()
+	metrics.OrdersInCache.Set(float64(len(c.data)))
 	c.logger.Infof("Cache invalidated for order: %s", orderUID)
 }
 
@@ -98,17 +94,12 @@ func (c *InMemoryCache) WarmUpCache(orders []models.OrderJSON) error {
 
 	now := time.Now()
 	for _, order := range orders {
-		_, existed := c.data[order.OrderUID]
-
 		c.data[order.OrderUID] = cacheEntry{
 			order:     order,
 			expiresAt: now.Add(c.ttl),
 		}
-
-		if !existed {
-			metrics.OrdersInCache.Inc()
-		}
 	}
+	metrics.OrdersInCache.Set(float64(len(c.data)))
 	c.logger.Infof("Cache warmed up with %d orders", len(orders))
 	return nil
 }
@@ -125,16 +116,19 @@ func (c *InMemoryCache) cleanExpiredCache() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	expiredCount := 0
 	now := time.Now()
+	cleaned := false
+
 	for orderUID, entry := range c.data {
 		if now.After(entry.expiresAt) {
 			delete(c.data, orderUID)
-			expiredCount++
+			cleaned = true
 			c.logger.Infof("Cache EXPIRED: %s", orderUID)
 		}
 	}
-	if expiredCount > 0 {
+
+	// Обновляем метрику только если что-то почистили
+	if cleaned {
 		metrics.OrdersInCache.Set(float64(len(c.data)))
 	}
 }
