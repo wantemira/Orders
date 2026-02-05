@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	// Service
 	OrdersCreatedTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "orders_created_total",
@@ -23,11 +24,21 @@ var (
 		[]string{"operation"},
 	)
 
+	// Cache
 	OrdersInCache = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "orders_in_cache",
 			Help: "Number of orders currently in cache",
 		},
+	)
+
+	// Kafka
+	KafkaMessagesTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "kafka_messages_total",
+			Help: "Total kafka messages processed",
+		},
+		[]string{"topic", "status", "error_type"},
 	)
 
 	KafkaProcessingAttempts = promauto.NewHistogramVec(
