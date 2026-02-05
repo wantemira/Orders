@@ -12,20 +12,8 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/segmentio/kafka-go"
 	"github.com/sirupsen/logrus"
-)
-
-var (
-	kafkaMessagesTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "kafka_messages_total",
-			Help: "Total kafka messages processed",
-		},
-		[]string{"topic", "status", "error_type"},
-	)
 )
 
 // KafkaConsumer реализует Consumer для чтения сообщений из Kafka
@@ -95,15 +83,15 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 	}()
 	timeMetricStatus = "error"
 
-	kafkaMessagesTotal.WithLabelValues(topic, "received", "none").Inc()
+	metrics.KafkaMessagesTotal.WithLabelValues(topic, "received", "none").Inc()
 
 	kafkaMsg, err := c.reader.ReadMessage(ctx)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			kafkaMessagesTotal.WithLabelValues(topic, "error", "context_canceled").Inc()
+			metrics.KafkaMessagesTotal.WithLabelValues(topic, "error", "context_canceled").Inc()
 			return err
 		}
-		kafkaMessagesTotal.WithLabelValues(topic, "error", "fetch_message").Inc()
+		metrics.KafkaMessagesTotal.WithLabelValues(topic, "error", "fetch_message").Inc()
 		c.logger.Errorf("KafkaConsumer.ConsumeMessage: failed to fetch msg: %v", err)
 		return fmt.Errorf("fetch message: %w", err)
 	}
@@ -116,19 +104,19 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 	log.Info("KafkaConsumer.Run: Received kafka message")
 	var order *models.OrderJSON
 	if err := json.Unmarshal(kafkaMsg.Value, &order); err != nil {
-		kafkaMessagesTotal.WithLabelValues(topic, "error", "parse").Inc()
+		metrics.KafkaMessagesTotal.WithLabelValues(topic, "error", "parse").Inc()
 		c.handlePermanentErr(ctx, log, kafkaMsg, "json_unmarshal", err)
 		return nil
 	}
 	validate := validator.New()
 	if err := validate.Struct(order); err != nil {
-		kafkaMessagesTotal.WithLabelValues(topic, "error", "validation").Inc()
+		metrics.KafkaMessagesTotal.WithLabelValues(topic, "error", "validation").Inc()
 		c.handlePermanentErr(ctx, log, kafkaMsg, "validation", err)
 		return nil
 	}
 
 	log = log.WithField("order_uid", order.OrderUID)
-	var lastErr, commitErr error
+	var commitErr error
 	processingSuccess := false
 	attempts := 0
 
@@ -139,8 +127,6 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 			processingSuccess = true
 			break
 		}
-
-		lastErr = err
 
 		if c.isTemporaryError(err) && attempt < c.maxRetries {
 			backoff := time.Duration(attempt) * time.Second
@@ -158,20 +144,17 @@ func (c *KafkaConsumer) ConsumeMessage(ctx context.Context) error {
 	metrics.KafkaProcessingAttempts.WithLabelValues(topic, finalStatus).Observe(float64(attempts))
 
 	if !processingSuccess {
-		kafkaMessagesTotal.WithLabelValues(topic, "error", "processing").Inc()
+		metrics.KafkaMessagesTotal.WithLabelValues(topic, "error", "processing").Inc()
 	} else {
-		if commitErr = c.Commit(ctx, kafkaMsg); commitErr != nil {
-			kafkaMessagesTotal.WithLabelValues(topic, "error", "commit").Inc()
-			log.Errorf("Failed to commit after error %v", commitErr)
-		} else {
-			kafkaMessagesTotal.WithLabelValues(topic, "success", "none").Inc()
-		}
-	}
-
-	if processingSuccess && commitErr == nil {
-		timeMetricStatus = "success"
-	}
-	c.handleProcessingErr(ctx, log, kafkaMsg, order, lastErr, c.maxRetries)
+        if commitErr = c.Commit(ctx, kafkaMsg); commitErr != nil {
+            metrics.KafkaMessagesTotal.WithLabelValues(topic, "error", "commit").Inc()
+            log.Errorf("Failed to commit after error %v", commitErr)
+        } else {
+            metrics.KafkaMessagesTotal.WithLabelValues(topic, "success", "none").Inc()
+            timeMetricStatus = "success"
+            log.WithField("order_uid", order.OrderUID).Info("Order successfully processed and committed")
+        }
+    }
 
 	return nil
 }
