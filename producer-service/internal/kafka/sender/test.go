@@ -17,6 +17,7 @@ func createRandomOrder() models.Order {
 		TrackNumber: trackNumber,
 		Entry:       gofakeit.Regex("ENT[A-Z0-9]{3}"),
 		Delivery: models.Delivery{
+			OrderUID: orderUID, 
 			Name:    gofakeit.Name(),
 			Phone:   gofakeit.Phone(),
 			Zip:     gofakeit.Zip(),
@@ -31,15 +32,14 @@ func createRandomOrder() models.Order {
 			Currency:     gofakeit.CurrencyShort(),
 			Provider:     gofakeit.Word(),
 			Amount:       int(gofakeit.Price(1, 5000)),
-			PaymentDT:    gofakeit.Date().Unix(),
-			Bank:         gofakeit.Company(),
+			PaymentDT:    gofakeit.DateRange(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), time.Now()).Unix(),			Bank:         gofakeit.Company(),
 			DeliveryCost: int(gofakeit.Price(1, 1000)),
 			GoodsTotal:   int(gofakeit.Price(100, 3000)),
 			CustomFee:    int(gofakeit.Price(0, 100)),
 		},
 		Items: []models.Item{
 			{
-				ChrtID:      int(gofakeit.Int64()),
+				ChrtID:      int64(gofakeit.Number(1, 1000000000)),
 				TrackNumber: trackNumber,
 				Price:       int(gofakeit.Price(1, 1000)),
 				RID:         gofakeit.UUID(),
@@ -47,7 +47,7 @@ func createRandomOrder() models.Order {
 				Sale:        gofakeit.Number(0, 100),
 				Size:        gofakeit.RandomString([]string{"XXS", "XXL", "XS", "S", "M", "L", "XL"}),
 				TotalPrice:  gofakeit.Number(0, 1000),
-				NmID:        int(gofakeit.Int64()),
+				NmID:        int64(gofakeit.Number(1, 1000000000)),
 				Brand:       gofakeit.Company(),
 				Status:      gofakeit.Number(100, 600),
 			},
@@ -61,7 +61,9 @@ func createRandomOrder() models.Order {
 		DateCreated:       gofakeit.Date().Format(time.RFC3339),
 		OofShard:          strconv.Itoa(gofakeit.Number(1, 9)),
 	}
-
+    if order.Payment.PaymentDT < 0 {
+        order.Payment.PaymentDT = gofakeit.Date().Unix()
+    }
 	// С вероятностью 20% добавляем ошибки валидации
 	if gofakeit.Number(1, 100) <= 20 {
 		introduceValidationError(&order)

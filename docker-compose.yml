@@ -1,33 +1,36 @@
 services:
-  kafka: # Сервис кафка
-    image: bitnami/kafka:latest # Указываем образ, на котором будет запускаться сервис
-    ports: # Порты на котором мы можем обращаться к сервису (Список [el1, el2])
-      - "9092:9092" #  <порт контейнера(нельзя менять произвольно, определяется образом kafka)>:<Порт хоста(можно менять как угодно, для доступа с вашего компьютера)>
-      - "9090:9090" # Случайный порт хоста (docker сам выберет свободный порт хоста)
+  kafka:
+    image: apache/kafka:latest
+    ports:
+      - "9092:9092"
+      - "9090:9090"
       - "9091:9091"
-    environment: # Переменные окружения (k=v)
-      - KAFKA_CFG_NODE_ID=1 # Уникальный ID ноды в кластере (для каждой свой ID)
-      - KAFKA_KRAFT_CLUSTER_ID=DWfwefwefew # Уникальный ID кластера (Может быть любой строкой)
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker # контролер - управление метаданными кластера, брокер принимает и отправляет сообщения клиентам
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9091 # Список всех controller нод в формате <node_id@host:port>
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9090,CONTROLLER://:9091,EXTERNAL://:9092 # Определяет какие порты слушает кафка и для каких целей 
-      # PLAINTEXT://:9090 - Для общения между брокерами (внутренний)
-      # CONTROLLER://:9091 - Для controller коммуникации (внутренний)
-      # EXTERNAL://:9092 - Для внешних клиентов (внешний)
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9090,EXTERNAL://kafka:9092 # Как клиенты должны подключаться к этому брокеру
-      # PLAINTEXT://kafka:9090 - Внутреннее имя для межброкерного общения
-      # EXTERNAL://localhost:9092 - Внешнее имя для клиентов (HOSTNAME или localhost)
-      
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT # Соответствие между listener и протоколом безопасности
-      
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAME=CONTROLLER # Какой listener использовать для controller коммуникации
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT # Какой listener использовать для общения между брокерами
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER # Какие список listener использовать для controller коммуникации
-    volumes:
-      - kafka_data:/bitnami/kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      CLUSTER_ID: DWfwefwefew
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9091
+      KAFKA_LISTENERS: PLAINTEXT://:9090,CONTROLLER://:9091,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9090,EXTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+
+      # КРИТИЧЕСКИ ВАЖНЫЕ ПАРАМЕТРЫ ДЛЯ KRaft:
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # Используем временную директорию в памяти
+      KAFKA_LOG_DIRS: /dev/shm/kafka-logs
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server kafka:9092 --list"]
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server kafka:9092 --list || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
   main-service:
     build:
       context: ./main-service
@@ -67,7 +70,6 @@ services:
     build:
       context: ./producer-service
       dockerfile: Dockerfile
-    profiles: ["manual"]
     restart: "no"
     environment:
       DB_HOST: postgres
