@@ -42,7 +42,7 @@ func NewRepository(client *pgx.Conn, logger *logrus.Logger) *Repository {
 // Create сохраняет заказ в базе данных
 func (r *Repository) Create(ctx context.Context, orderJSON *models.OrderJSON) error {
 	r.mu.Lock()
-    defer r.mu.Unlock()
+	defer r.mu.Unlock()
 
 	tx, err := r.client.Begin(ctx)
 	if err != nil {
@@ -147,8 +147,8 @@ func (r *Repository) GetAll(ctx context.Context) ([]models.OrderJSON, error) {
 
 func (r *Repository) getAllOrderUIDs(ctx context.Context) ([]string, error) {
 	r.mu.Lock()
-    defer r.mu.Unlock()
-	
+	defer r.mu.Unlock()
+
 	rows, err := r.client.Query(ctx, "SELECT order_uid FROM orders ORDER BY date_created DESC")
 	if err != nil {
 		return nil, fmt.Errorf("Repository.getAllOrderUIDs: %w", err)
@@ -172,8 +172,8 @@ func (r *Repository) getAllOrderUIDs(ctx context.Context) ([]string, error) {
 // GetOrder возвращает заказ по его UID из базы данных
 func (r *Repository) GetOrder(ctx context.Context, orderUID string) (*models.OrderJSON, error) {
 	r.mu.Lock()
-    defer r.mu.Unlock()
-	
+	defer r.mu.Unlock()
+
 	var order models.OrderJSON
 	err := r.client.QueryRow(ctx,
 		`SELECT order_uid, track_number, entry, locale, internal_signature, customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard
