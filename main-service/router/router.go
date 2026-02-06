@@ -56,7 +56,7 @@ type Server struct {
 
 // NewServer создает новый HTTP сервер
 func NewServer(handler *subs.Handler, logger *logrus.Logger) *Server {
-	port := utilsCfg.GetEnv("PORT", "8081")
+	port := utilsCfg.GetEnv("PORT", "8080")
 	server := &http.Server{
 		Addr: fmt.Sprintf(":%s", port),
 	}
